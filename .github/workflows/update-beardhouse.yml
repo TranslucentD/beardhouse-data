@@ -1,6 +1,6 @@
 name: Update Beardhouse Data
 
-"on":
+on:
   workflow_dispatch: {}
   schedule:
     - cron: "17 13 * * 2"
@@ -26,23 +26,13 @@ jobs:
 
           mkdir -p data/matchups data/transactions
 
-          curl -fsSL "$BASE/league/$LEAGUE_ID" \
-            -o data/league.json
-
-          curl -fsSL "$BASE/league/$LEAGUE_ID/users" \
-            -o data/users.json
-
-          curl -fsSL "$BASE/league/$LEAGUE_ID/rosters" \
-            -o data/rosters.json
+          curl -fsSL "$BASE/league/$LEAGUE_ID" -o data/league.json
+          curl -fsSL "$BASE/league/$LEAGUE_ID/users" -o data/users.json
+          curl -fsSL "$BASE/league/$LEAGUE_ID/rosters" -o data/rosters.json
 
           for WEEK in $(seq 1 18); do
-            curl -fsSL \
-              "$BASE/league/$LEAGUE_ID/matchups/$WEEK" \
-              -o "data/matchups/week_${WEEK}.json"
-
-            curl -fsSL \
-              "$BASE/league/$LEAGUE_ID/transactions/$WEEK" \
-              -o "data/transactions/week_${WEEK}.json"
+            curl -fsSL "$BASE/league/$LEAGUE_ID/matchups/$WEEK" -o "data/matchups/week_${WEEK}.json"
+            curl -fsSL "$BASE/league/$LEAGUE_ID/transactions/$WEEK" -o "data/transactions/week_${WEEK}.json"
           done
 
           python - <<'PY'
@@ -57,29 +47,18 @@ jobs:
                   return json.load(f)
 
           combined = {
-              "updated_at_utc":
-                  datetime.datetime.now(
-                      datetime.timezone.utc
-                  ).isoformat(),
-
-              "league":
-                  load(root / "league.json"),
-
-              "users":
-                  load(root / "users.json"),
-
-              "rosters":
-                  load(root / "rosters.json"),
-
+              "updated_at_utc": datetime.datetime.now(
+                  datetime.timezone.utc
+              ).isoformat(),
+              "league": load(root / "league.json"),
+              "users": load(root / "users.json"),
+              "rosters": load(root / "rosters.json"),
               "matchups": {
-                  str(w):
-                      load(root / f"matchups/week_{w}.json")
+                  str(w): load(root / f"matchups/week_{w}.json")
                   for w in range(1, 19)
               },
-
               "transactions": {
-                  str(w):
-                      load(root / f"transactions/week_{w}.json")
+                  str(w): load(root / f"transactions/week_{w}.json")
                   for w in range(1, 19)
               },
           }
@@ -101,8 +80,7 @@ jobs:
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data
 
