@@ -1,4 +1,4 @@
-name: Update Beardhouse Data
+</> YAML
 
 "on":
   workflow_dispatch:
