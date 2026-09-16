@@ -1,1 +1,114 @@
+name: Update Beardhouse Data
 
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 13 * * 2'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Beardhouse data from Sleeper
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LEAGUE_ID="1390486041026113536"
+          BASE="https://api.sleeper.app/v1"
+
+          mkdir -p data/matchups data/transactions
+
+          curl -fsSL "$BASE/league/$LEAGUE_ID" \
+            -o data/league.json
+
+          curl -fsSL "$BASE/league/$LEAGUE_ID/users" \
+            -o data/users.json
+
+          curl -fsSL "$BASE/league/$LEAGUE_ID/rosters" \
+            -o data/rosters.json
+
+          for WEEK in $(seq 1 18); do
+            curl -fsSL \
+              "$BASE/league/$LEAGUE_ID/matchups/$WEEK" \
+              -o "data/matchups/week_${WEEK}.json"
+
+            curl -fsSL \
+              "$BASE/league/$LEAGUE_ID/transactions/$WEEK" \
+              -o "data/transactions/week_${WEEK}.json"
+          done
+
+          python - <<'PY'
+          import json
+          import pathlib
+          import datetime
+
+          root = pathlib.Path("data")
+
+          def load(path):
+              with open(path, encoding="utf-8") as f:
+                  return json.load(f)
+
+          combined = {
+              "updated_at_utc":
+                  datetime.datetime.now(
+                      datetime.timezone.utc
+                  ).isoformat(),
+
+              "league":
+                  load(root / "league.json"),
+
+              "users":
+                  load(root / "users.json"),
+
+              "rosters":
+                  load(root / "rosters.json"),
+
+              "matchups": {
+                  str(w):
+                      load(root / f"matchups/week_{w}.json")
+                  for w in range(1, 19)
+              },
+
+              "transactions": {
+                  str(w):
+                      load(root / f"transactions/week_{w}.json")
+                  for w in range(1, 19)
+              },
+          }
+
+          with open(
+              root / "beardhouse_current.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              json.dump(
+                  combined,
+                  f,
+                  ensure_ascii=False,
+                  separators=(",", ":")
+              )
+          PY
+
+      - name: Commit refreshed data
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Update Beardhouse data"
+            git push
+          fi
